@@ -19,15 +19,46 @@ fn main() {
 		castlings,
 	};
 
+	position.alphas[0] = Some(Coord::from(34));
+	position.alphas[1] = Some(Coord::from(36));
+
 	position.tiles[34] = Some((Side::from(0), TroopId::from(0)));
 	position.tiles[36] = Some((Side::from(1), TroopId::from(0)));
+
 	position.tiles[19] = Some((Side::from(1), TroopId::from(1)));
+	position.tiles[13] = Some((Side::from(0), TroopId::from(2)));
+	position.tiles[30] = Some((Side::from(1), TroopId::from(2)));
 
+
+	let plays = position.troop_plays(Coord::from(13));
+	position.troop_play(Coord::from(13), &plays[1]);
+	let plays = position.troop_plays(Coord::from(13));
+	
 	println!("{}", position.fen_string_2p());
-
-	let plays = position.troop_plays(Coord::from(19));
+	println!("W: {}, B: {}", position.in_check(Side::from(0)), position.in_check(Side::from(1)));
 
 	for play in &plays {
+		if !position.is_play_safe(Coord::from(13), play) {
+			print!("! ");
+		}
+
+		print!("{}", play.to.fmt(&game));
+		for threat in &play.threats {
+			print!(", x{}", threat.fmt(&game));
+		}
+
+		println!();
+	}
+
+	println!();
+
+	let plays = position.troop_plays(Coord::from(30));
+
+	for play in &plays {
+		if !position.is_play_safe(Coord::from(30), play) {
+			print!("! ");
+		}
+
 		print!("{}", play.to.fmt(&game));
 		for threat in &play.threats {
 			print!(", x{}", threat.fmt(&game));

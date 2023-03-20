@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 use crate::chess::*;
 
 pub fn classical_game() -> Rc<Game> {
@@ -13,6 +13,10 @@ pub fn classical_game() -> Rc<Game> {
 			char: 'N',
 			get_plays: get_knight_plays,
 			do_play: do_normal_play,
+		}, Troop {
+			char: 'P',
+			get_plays: get_pawn_plays,
+			do_play: do_pawn_play,
 		}],
 		multi_castle: false,
 	})
@@ -28,6 +32,8 @@ fn do_normal_play(position: &mut Position, info: TroopInfo, play: &TroopPlay) ->
 
 	position.tiles[info.coord] = None;
 	position.tiles[play.to] = Some((info.side, info.id));
+
+	position.passant = Vec::new();
 
 	ply
 }
@@ -105,7 +111,7 @@ fn get_pawn_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 
 	let (dy, dash_rank) = match info.side.idx {
 		0 => (1, 1),
-		1 => (-1, 7),
+		1 => (-1, 6),
 		_ => panic!("this is not classical chess, bozo"),
 	};
 
@@ -117,7 +123,73 @@ fn get_pawn_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 		}
 	}
 
+	if x > 1 {
+		if let Some((side, _)) = position.tiles[Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8)] {
+			if side != info.side {
+				moves.push(TroopPlay { to: Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8), threats: vec![Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8)] });
+			}
+		}
 
+		if position.passant.len() == 3 && x - 1 == position.passant[1].decomp(&game).0 {
+			if let Some((side, _)) = position.tiles[position.passant[2]] {
+				if side != info.side {
+					moves.push(TroopPlay { to: Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8), threats: vec![position.passant[2]] });
+				}
+			}
+		}
+	}
+
+	if x < game.width - 1 {
+		if let Some((side, _)) = position.tiles[Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8)] {
+			if side != info.side {
+				moves.push(TroopPlay { to: Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8), threats: vec![Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8)] });
+			}
+		}
+
+		if position.passant.len() == 3 && x + 1 == position.passant[1].decomp(&game).0 {
+			if let Some((side, _)) = position.tiles[position.passant[2]] {
+				if side != info.side {
+					moves.push(TroopPlay { to: Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8), threats: vec![position.passant[2]] });
+				}
+			}
+		}
+	}
 
 	moves
+}
+
+
+fn do_pawn_play(position: &mut Position, info: TroopInfo, play: &TroopPlay) -> MovePly {
+	let game = &position.game;
+	let ply = MovePly {
+		troop: info.id,
+		from: info.coord,
+		to: play.to,
+		kills: play.threats.clone(),
+	};
+
+	position.tiles[info.coord] = None;
+	position.tiles[play.to] = Some((info.side, info.id));
+
+	for &threat in &play.threats {
+		position.tiles[threat] = None;
+	}
+
+	if i32::abs(info.coord.decomp(&game).1 as i32 - play.to.decomp(&game).1 as i32) > 1 {
+		position.passant = vec![info.coord, play.to, play.to];
+	} else {
+		position.passant = Vec::new();
+	}
+
+	let prom_rank = match info.side.idx {
+		0 => 7,
+		1 => 0,
+		_ => panic!("this is not classical chess, bozo"),
+	};
+
+	if play.to.decomp(&game).1 == prom_rank {
+		position.tiles[play.to] = Some((info.side, TroopId::from(0)));
+	}
+
+	ply
 }

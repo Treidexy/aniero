@@ -2,7 +2,7 @@ use std::{ops::{Index, IndexMut}, rc::Rc};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Coord {
-	idx: u8,
+	pub idx: u8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -10,6 +10,7 @@ pub struct Side {
 	pub idx: u8,
 }
 
+#[derive(Clone)]
 pub struct TroopPlay {
 	pub to: Coord,
 	pub threats: Vec<Coord>,
@@ -110,12 +111,12 @@ impl Castling {
 }
 
 pub struct PositionInfo {
-	threats: [[bool; 8]; 256],
+	pub threats: [[bool; 8]; 256],
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TroopId {
-	idx: u8,
+	pub idx: u8,
 }
 
 pub struct TroopInfo {
@@ -267,7 +268,16 @@ impl Position {
 		info
 	}
 
-	pub fn is_play_safe(&self, coord: Coord, side: Side, troop_id: TroopId, play: &TroopPlay) -> bool {
+	pub fn in_check(&self, side: Side) -> bool {
+		let Some(alpha) = self.alphas[side] else {
+			return false;
+		};
+	
+		self.analyze().threats[alpha].iter().enumerate().filter(|(i, _)| Side::from(*i) != side).map(|(_, b)| *b).reduce(|a, b| a || b).unwrap()
+	}
+
+	pub fn is_play_safe(&self, coord: Coord, play: &TroopPlay) -> bool {
+		let (side, troop_id) = self.tiles[coord].unwrap();
 		let Some(alpha) = self.alphas[side] else {
 			return true;
 		};
