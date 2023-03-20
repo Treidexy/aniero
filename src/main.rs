@@ -1,16 +1,38 @@
 mod chess;
 mod classical;
-mod gui;
 
 use chess::*;
 use classical::*;
 
 fn main() {
-	gui::run_gui();
+	let recent_plys = [(); 24].map(|_| Ply::None);
+	let castlings = [(); 8].map(|_| Vec::new());
 
-	let king = Troop {
-		char: 'K',
-		get_plays: get_king_plays,
-		do_play: do_king_play,
+	let game = classical_game();
+
+	let mut position = Position {
+		game: game.clone(),
+		tiles: [None; 256],
+		alphas: [None; 8],
+		recent_plys,
+		passant: Vec::new(),
+		castlings,
 	};
+
+	position.tiles[34] = Some((Side::from(0), TroopId::from(0)));
+	position.tiles[36] = Some((Side::from(1), TroopId::from(0)));
+	position.tiles[19] = Some((Side::from(1), TroopId::from(1)));
+
+	println!("{}", position.fen_string_2p());
+
+	let plays = position.troop_plays(Coord::from(19));
+
+	for play in &plays {
+		print!("{}", play.to.fmt(&game));
+		for threat in &play.threats {
+			print!(", x{}", threat.fmt(&game));
+		}
+
+		println!();
+	}
 }

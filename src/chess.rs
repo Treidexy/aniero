@@ -1,13 +1,13 @@
-use std::ops::{Index, IndexMut};
+use std::{ops::{Index, IndexMut}, rc::Rc};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Coord {
 	idx: u8,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Side {
-	idx: u8,
+	pub idx: u8,
 }
 
 pub struct TroopPlay {
@@ -49,8 +49,8 @@ pub struct Game {
 
 // width * height <= 256
 #[derive(Clone)]
-pub struct Position<'a> {
-	pub game: &'a Game,
+pub struct Position {
+	pub game: Rc<Game>,
 	pub alphas: [Option<Coord>; 8],
 	pub tiles: [Option<(Side, TroopId)>; 256],
 	pub recent_plys: [Ply; 24],
@@ -222,13 +222,13 @@ impl Game {
 	}
 }
 
-impl<'a> Position<'a> {
+impl Position {
 	pub fn troop_plays(&self, coord: Coord) -> Vec<TroopPlay> {
 		let Some((side, id)) = self.tiles[coord] else {
 			return Vec::new();
 		};
 
-		let game = self.game;
+		let game = &self.game;
 		let troop = game.get_troop(id);
 		(troop.get_plays)(self, TroopInfo { id, coord, side })
 	}
@@ -238,14 +238,14 @@ impl<'a> Position<'a> {
 			return;
 		};
 
-		let game = self.game;
+		let game = &self.game;
 		let troop = game.get_troop(id);
 		let ply = Ply::Move((troop.do_play)(self, TroopInfo { id, coord, side }, play));
 		self.recent_plys[0] = ply;
 	}
 
 	pub fn analyze(&self) -> PositionInfo {
-		let game = self.game;
+		let game = &self.game;
 		let mut info = PositionInfo {
 			threats: [[false; 8]; 256],
 		};
@@ -291,7 +291,7 @@ impl<'a> Position<'a> {
 			let y = self.game.height - y - 1;
 
 			for x in 0..self.game.width {
-				let coord = Coord::from_xy(self.game, x, y);
+				let coord = Coord::from_xy(&self.game, x, y);
 				if let Some((side, troop_id)) = self.tiles[coord] {
 					if empty > 0 {
 						string.push_str(&empty.to_string());
