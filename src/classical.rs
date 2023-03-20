@@ -10,6 +10,18 @@ pub fn classical_game() -> Rc<Game> {
 			get_plays: get_king_plays,
 			do_play: do_normal_play,
 		}, Troop {
+			char: 'Q',
+			get_plays: get_queen_plays,
+			do_play: do_normal_play,
+		}, Troop {
+			char: 'R',
+			get_plays: get_rook_plays,
+			do_play: do_normal_play,
+		}, Troop {
+			char: 'B',
+			get_plays: get_bishop_plays,
+			do_play: do_normal_play,
+		}, Troop {
 			char: 'N',
 			get_plays: get_knight_plays,
 			do_play: do_normal_play,
@@ -20,6 +32,49 @@ pub fn classical_game() -> Rc<Game> {
 		}],
 		multi_castle: false,
 	})
+}
+
+pub fn setup_classical() -> Position {
+	let mut position = Position {
+		game: classical_game().clone(),
+		tiles: [None; 256],
+		alphas: [None; 8],
+		recent_plys: [(); 24].map(|_| Ply::None),
+		passant: Vec::new(),
+		castlings: [(); 8].map(|_| Vec::new()),
+	};
+
+	for x in 0..8 {
+		position.tiles[Coord::from_xy(&position.game, x, 1)] = Some((Side::from(0), TroopId::from(5)));
+		position.tiles[Coord::from_xy(&position.game, x, 6)] = Some((Side::from(1), TroopId::from(5)));
+	}
+
+	position.tiles[Coord::from_xy(&position.game, 0, 0)] = Some((Side::from(0), TroopId::from(2)));
+	position.tiles[Coord::from_xy(&position.game, 7, 0)] = Some((Side::from(0), TroopId::from(2)));
+
+	position.tiles[Coord::from_xy(&position.game, 1, 0)] = Some((Side::from(0), TroopId::from(4)));
+	position.tiles[Coord::from_xy(&position.game, 6, 0)] = Some((Side::from(0), TroopId::from(4)));
+
+	position.tiles[Coord::from_xy(&position.game, 2, 0)] = Some((Side::from(0), TroopId::from(3)));
+	position.tiles[Coord::from_xy(&position.game,5, 0)] = Some((Side::from(0), TroopId::from(3)));
+
+	position.tiles[Coord::from_xy(&position.game, 3, 0)] = Some((Side::from(0), TroopId::from(1)));
+	position.tiles[Coord::from_xy(&position.game, 4, 0)] = Some((Side::from(0), TroopId::from(0)));
+
+
+	position.tiles[Coord::from_xy(&position.game, 0, 7)] = Some((Side::from(1), TroopId::from(2)));
+	position.tiles[Coord::from_xy(&position.game, 7, 7)] = Some((Side::from(1), TroopId::from(2)));
+
+	position.tiles[Coord::from_xy(&position.game, 1, 7)] = Some((Side::from(1), TroopId::from(4)));
+	position.tiles[Coord::from_xy(&position.game, 6, 7)] = Some((Side::from(1), TroopId::from(4)));
+
+	position.tiles[Coord::from_xy(&position.game, 2, 7)] = Some((Side::from(1), TroopId::from(3)));
+	position.tiles[Coord::from_xy(&position.game,5, 7)] = Some((Side::from(1), TroopId::from(3)));
+
+	position.tiles[Coord::from_xy(&position.game, 3, 7)] = Some((Side::from(1), TroopId::from(1)));
+	position.tiles[Coord::from_xy(&position.game,4,7)] = Some((Side::from(1), TroopId::from(0)));
+
+	position
 }
 
 fn do_normal_play(position: &mut Position, info: TroopInfo, play: &TroopPlay) -> MovePly {
@@ -41,7 +96,7 @@ fn do_normal_play(position: &mut Position, info: TroopInfo, play: &TroopPlay) ->
 fn get_king_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 	let (x, y) = info.coord.decomp(&position.game);
 
-	let mut moves = Vec::new();
+	let mut plays = Vec::new();
 	for dx in -1..2 {
 		for dy in -1..2 {
 			if dx == 0 && dy == 0 {
@@ -57,24 +112,24 @@ fn get_king_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 
 
 			let Some((side, _)) = position.tiles[ncoord] else {
-				moves.push(TroopPlay { to: ncoord, threats: Vec::new() });
+				plays.push(TroopPlay { to: ncoord, threats: Vec::new() });
 				continue;
 			};
 
 			if side != info.side {
-				moves.push(TroopPlay { to: ncoord, threats: vec![ncoord] });
+				plays.push(TroopPlay { to: ncoord, threats: vec![ncoord] });
 			}
 		}
 	}
 
-	moves
+	plays
 }
 
 fn get_knight_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 	let game = &position.game;
 	let (x, y) = info.coord.decomp(&game);
 
-	let mut moves = Vec::new();
+	let mut plays = Vec::new();
 	
 	for (dx, dy) in [
 		(-2, -1), (-2, 1),
@@ -92,22 +147,22 @@ fn get_knight_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 		let coord = Coord::from_xy(&game, nx, ny);
 
 		let Some((side, _)) = position.tiles[coord] else {
-			moves.push(TroopPlay { to: coord, threats: Vec::new() });
+			plays.push(TroopPlay { to: coord, threats: Vec::new() });
 			continue;
 		};
 		
 		if side != info.side {
-			moves.push(TroopPlay { to: coord, threats: vec![coord] });
+			plays.push(TroopPlay { to: coord, threats: vec![coord] });
 		}
 	}
 
-	moves
+	plays
 }
 
 fn get_pawn_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 	let game = &position.game;
 	let (x, y) = info.coord.decomp(&game);
-	let mut moves = Vec::new();
+	let mut plays = Vec::new();
 
 	let (dy, dash_rank) = match info.side.idx {
 		0 => (1, 1),
@@ -116,24 +171,24 @@ fn get_pawn_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 	};
 
 	if position.tiles[Coord::from_xy(&game, x, (y as i32 + dy) as u8)].is_none() {
-		moves.push(TroopPlay { to: Coord::from_xy(&game, x, (y as i32 + dy) as u8), threats: Vec::new() });
+		plays.push(TroopPlay { to: Coord::from_xy(&game, x, (y as i32 + dy) as u8), threats: Vec::new() });
 
 		if y == dash_rank && position.tiles[Coord::from_xy(&game, x, (y as i32 + dy + dy) as u8)].is_none() {
-			moves.push(TroopPlay { to: Coord::from_xy(&game, x, (y as i32 + dy + dy) as u8), threats: Vec::new() });
+			plays.push(TroopPlay { to: Coord::from_xy(&game, x, (y as i32 + dy + dy) as u8), threats: Vec::new() });
 		}
 	}
 
 	if x > 1 {
 		if let Some((side, _)) = position.tiles[Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8)] {
 			if side != info.side {
-				moves.push(TroopPlay { to: Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8), threats: vec![Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8)] });
+				plays.push(TroopPlay { to: Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8), threats: vec![Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8)] });
 			}
 		}
 
 		if position.passant.len() == 3 && x - 1 == position.passant[1].decomp(&game).0 {
 			if let Some((side, _)) = position.tiles[position.passant[2]] {
 				if side != info.side {
-					moves.push(TroopPlay { to: Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8), threats: vec![position.passant[2]] });
+					plays.push(TroopPlay { to: Coord::from_xy(&game, x - 1, (y as i32 + dy) as u8), threats: vec![position.passant[2]] });
 				}
 			}
 		}
@@ -142,20 +197,20 @@ fn get_pawn_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
 	if x < game.width - 1 {
 		if let Some((side, _)) = position.tiles[Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8)] {
 			if side != info.side {
-				moves.push(TroopPlay { to: Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8), threats: vec![Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8)] });
+				plays.push(TroopPlay { to: Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8), threats: vec![Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8)] });
 			}
 		}
 
 		if position.passant.len() == 3 && x + 1 == position.passant[1].decomp(&game).0 {
 			if let Some((side, _)) = position.tiles[position.passant[2]] {
 				if side != info.side {
-					moves.push(TroopPlay { to: Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8), threats: vec![position.passant[2]] });
+					plays.push(TroopPlay { to: Coord::from_xy(&game, x + 1, (y as i32 + dy) as u8), threats: vec![position.passant[2]] });
 				}
 			}
 		}
 	}
 
-	moves
+	plays
 }
 
 
@@ -192,4 +247,70 @@ fn do_pawn_play(position: &mut Position, info: TroopInfo, play: &TroopPlay) -> M
 	}
 
 	ply
+}
+
+fn add_slide_plays(position: &Position, plays: &mut Vec<TroopPlay>, from: Coord, dx: i32, dy: i32) {
+	let game = &position.game;
+	let (mut x, mut y) = from.decomp(&game);
+	let (side, _) = position.tiles[from].unwrap();
+
+	loop {
+		x = (x as i32 + dx) as u8;
+		y = (y as i32 + dy) as u8;
+
+		// if x < 0; x == u8::MAX >= game.width
+		if x >= game.width || y >= game.height {
+			break;
+		}
+
+		let coord = Coord::from_xy(&game, x, y);
+
+		if let Some((other_side, _)) = position.tiles[coord] {
+			if side != other_side {
+				plays.push(TroopPlay { to: coord, threats: vec![coord] });
+			}
+
+			break;
+		}
+
+		plays.push(TroopPlay { to: coord, threats: Vec::new() });
+	}
+}
+
+fn get_rook_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
+	let mut plays = Vec::new();
+
+	add_slide_plays(position, &mut plays, info.coord, 1, 0);
+	add_slide_plays(position, &mut plays, info.coord, -1, 0);
+	add_slide_plays(position, &mut plays, info.coord, 0, 1);
+	add_slide_plays(position, &mut plays, info.coord, 0, -1);
+
+	plays
+}
+
+fn get_bishop_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
+	let mut plays = Vec::new();
+
+	add_slide_plays(position, &mut plays, info.coord, 1, 1);
+	add_slide_plays(position, &mut plays, info.coord, -1, 1);
+	add_slide_plays(position, &mut plays, info.coord, 1, -1);
+	add_slide_plays(position, &mut plays, info.coord, -1, -1);
+
+	plays
+}
+
+fn get_queen_plays(position: &Position, info: TroopInfo) -> Vec<TroopPlay> {
+	let mut plays = Vec::new();
+
+	add_slide_plays(position, &mut plays, info.coord, 1, 0);
+	add_slide_plays(position, &mut plays, info.coord, -1, 0);
+	add_slide_plays(position, &mut plays, info.coord, 0, 1);
+	add_slide_plays(position, &mut plays, info.coord, 0, -1);
+
+	add_slide_plays(position, &mut plays, info.coord, 1, 1);
+	add_slide_plays(position, &mut plays, info.coord, -1, 1);
+	add_slide_plays(position, &mut plays, info.coord, 1, -1);
+	add_slide_plays(position, &mut plays, info.coord, -1, -1);
+
+	plays
 }
